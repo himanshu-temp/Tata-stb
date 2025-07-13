@@ -1,7 +1,7 @@
-# tatasky_m3u_generator.py
 import requests
 import time
 
+# ==== CONFIGURATION ====
 BASE_URL = "http://play.tatasky.xyz/stalker_portal/c/"
 MAC_ADDRESS = "00:1A:79:00:00:9F"
 SN = "D2DF98F4AE9C4"
@@ -9,6 +9,7 @@ DEVICE_ID = "6DF3279B906BFC94AE027940C1DA84B87AA0CF24A5FA591DC8C7FB310642DAD9"
 STB_TYPE = "MAG270"
 OUTPUT_M3U = "tatasky_channels.m3u"
 
+# ==== SESSION HEADERS ====
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (QtEmbedded; U; Linux; C)",
     "X-User-Agent": f"Model: {STB_TYPE}; Link: Ethernet",
@@ -20,6 +21,7 @@ HEADERS = {
 session = requests.Session()
 session.headers.update(HEADERS)
 
+# ==== STEP 1: AUTH TOKEN ====
 def get_auth_token(retries=3, delay=2):
     url = f"{BASE_URL}auth/get_token?JsHttpRequest=1-xml"
     params = {
@@ -36,13 +38,12 @@ def get_auth_token(retries=3, delay=2):
                 print(resp.text)
                 time.sleep(delay)
                 continue
-
             json_data = resp.json()
             token = json_data['js']['token']
-            print(f"[✅] Authenticated successfully. Token: {token}")
+            print(f"[✅] Token fetched: {token}")
             return token
         except Exception as e:
-            print(f"[❌] Attempt {attempt}: Failed to parse JSON.")
+            print(f"[❌] Attempt {attempt}: Failed to get token or parse JSON")
             print("Response content:", resp.text)
             if attempt < retries:
                 print(f"[🔁] Retrying in {delay} seconds...")
@@ -50,6 +51,7 @@ def get_auth_token(retries=3, delay=2):
             else:
                 raise e
 
+# ==== STEP 2: PROFILE SYNC ====
 def get_profile(token):
     session.get(f"{BASE_URL}portal.php", params={
         "type": "stb", "action": "handshake", "token": token, "JsHttpRequest": "1-xml"
@@ -58,6 +60,7 @@ def get_profile(token):
         "type": "stb", "action": "get_profile", "JsHttpRequest": "1-xml"
     })
 
+# ==== STEP 3: FETCH CHANNELS ====
 def get_channels():
     r = session.get(f"{BASE_URL}portal.php", params={
         "type": "itv", "action": "get_all_channels", "JsHttpRequest": "1-xml"
@@ -69,6 +72,7 @@ def get_channels():
         print("Response content:", r.text)
         raise
 
+# ==== STEP 4: GENERATE M3U ====
 def generate_m3u(channels):
     with open(OUTPUT_M3U, "w", encoding="utf-8") as f:
         f.write("#EXTM3U\n")
@@ -77,17 +81,16 @@ def generate_m3u(channels):
             logo = ch.get("logo", "")
             cmd = ch.get("cmd", "")
             stream_url = BASE_URL + cmd.replace("ffmpeg ", "").strip()
-            f.write(f'#EXTINF:-1 tvg-logo="{logo}",{name}
-{stream_url}
-')
+            f.write(f'#EXTINF:-1 tvg-logo="{logo}",{name}\n{stream_url}\n')
     print(f"[📁] M3U file saved as: {OUTPUT_M3U}")
 
+# ==== MAIN FUNCTION ====
 def main():
     print("[🔑] Authenticating...")
     token = get_auth_token()
-    print("[📡] Fetching profile...")
+    print("[📡] Syncing profile...")
     get_profile(token)
-    print("[📺] Fetching channels list...")
+    print("[📺] Fetching channels...")
     channels = get_channels()
     print(f"[📃] Total channels fetched: {len(channels)}")
     generate_m3u(channels)
