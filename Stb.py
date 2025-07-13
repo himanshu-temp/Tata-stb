@@ -71,8 +71,7 @@ def get_channels():
 
 def generate_m3u(channels):
     with open(OUTPUT_M3U, "w", encoding="utf-8") as f:
-        f.write("#EXTM3U
-")
+        f.write("#EXTM3U\n")
         for ch in channels:
             name = ch.get("name", "NoName")
             logo = ch.get("logo", "")
